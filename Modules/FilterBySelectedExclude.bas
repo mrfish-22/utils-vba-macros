@@ -1,47 +1,47 @@
-Attribute VB_Name = "FilterBySelectedExclude"
 Option Explicit
 
 Sub FilterBySelectedExclude()
+    ' Enable error handling
     On Error GoTo ErrorHandler
     
-    Dim ws As Worksheet
-    Dim tbl As ListObject
-    Dim criteriaCell As Range
-    Dim fieldIndex As Long
-    Dim colWorksheet As Long
-    Dim dataRange As Range
-    Dim cell As Range
-    Dim uniqueValues As Object
-    Dim allowedValues As Collection
-    Dim arrAllowed() As Variant
-    Dim i As Long
-    Dim critVal As Variant
+    Dim ws As Worksheet             ' Active worksheet
+    Dim tbl As ListObject           ' Table object in the worksheet
+    Dim criteriaCell As Range       ' Cell that contains the filtering criteria
+    Dim fieldIndex As Long          ' Index of the column in the table corresponding to the criteria cell
+    Dim colWorksheet As Long        ' Column number of the criteria cell in the worksheet
+    Dim dataRange As Range          ' Range of data in the table column
+    Dim cell As Range               ' Loop variable for cells in the data range
+    Dim uniqueValues As Object      ' Dictionary to store unique values in the column
+    Dim allowedValues As Collection ' Collection for values allowed (not excluded)
+    Dim arrAllowed() As Variant     ' Array of allowed values for use with AutoFilter
+    Dim i As Long                   ' Loop counter
+    Dim critVal As Variant          ' The filtering criteria value
     
-    ' U¿ywamy bie¿¹cego arkusza
+    ' Use the active worksheet
     Set ws = ActiveSheet
     
-    ' SprawdŸ, czy aktywna komórka zawiera kryterium
+    ' Check if the active cell contains a criteria value
     If ActiveCell Is Nothing Or IsEmpty(ActiveCell.Value) Then
-        MsgBox "Zaznacz komórkê zawieraj¹c¹ kryterium.", vbExclamation
+        MsgBox "Please select a cell containing the filtering criteria.", vbExclamation
         Exit Sub
     End If
     Set criteriaCell = ActiveCell
     critVal = criteriaCell.Value
     
-    ' Pobierz pierwsz¹ tabelê z arkusza
+    ' Get the first table from the worksheet
     On Error Resume Next
     Set tbl = ws.ListObjects(1)
     On Error GoTo 0
     If tbl Is Nothing Then
-        MsgBox "Brak tabeli na bie¿¹cym arkuszu.", vbExclamation
+        MsgBox "No table found on the current worksheet.", vbExclamation
         Exit Sub
     End If
     
-    ' Oblicz indeks pola (kolumny w tabeli) odpowiadaj¹cy aktywnej komórce.
+    ' Calculate the field index (column in the table) corresponding to the active cell
     colWorksheet = criteriaCell.Column
     fieldIndex = colWorksheet - tbl.Range.Columns(1).Column + 1
     
-    ' SprawdŸ, czy w tabeli jest aktywny jakikolwiek filtr
+    ' Check if any filter is currently active in the table
     Dim filterActive As Boolean
     filterActive = False
     Dim f As Variant
@@ -56,18 +56,19 @@ Sub FilterBySelectedExclude()
         Next f
     End If
     
-    ' Statyczny s³ownik do przechowywania wykluczonych wartoœci dla poszczególnych kolumn
+    ' Static dictionary to store excluded values for specific columns
     Static exclusionDict As Object
     If exclusionDict Is Nothing Then
         Set exclusionDict = CreateObject("Scripting.Dictionary")
     Else
-        ' Jeœli tabela jest wyœwietlona w ca³oœci (bez aktywnych filtrów), resetujemy s³ownik
+        ' If the table is fully displayed (no active filters), reset the dictionary
         If Not filterActive Then
             Set exclusionDict = CreateObject("Scripting.Dictionary")
         End If
     End If
     
     Dim colExclusions As Object
+    ' Get or create the exclusions dictionary for the current field index
     If exclusionDict.exists(fieldIndex) Then
         Set colExclusions = exclusionDict(fieldIndex)
     Else
@@ -75,12 +76,12 @@ Sub FilterBySelectedExclude()
         exclusionDict.Add fieldIndex, colExclusions
     End If
     
-    ' Dodaj wybrane kryterium do listy wykluczeñ (jeœli jeszcze nie istnieje)
+    ' Add the selected criteria value to the exclusions list (if it doesn't already exist)
     If Not colExclusions.exists(critVal) Then
         colExclusions.Add critVal, critVal
     End If
     
-    ' Pobierz wszystkie unikalne wartoœci z danej kolumny tabeli (ca³y DataBodyRange)
+    ' Retrieve all unique values from the specified column of the table (entire DataBodyRange)
     Set uniqueValues = CreateObject("Scripting.Dictionary")
     Set dataRange = tbl.ListColumns(fieldIndex).DataBodyRange
     For Each cell In dataRange.Cells
@@ -89,7 +90,7 @@ Sub FilterBySelectedExclude()
         End If
     Next cell
     
-    ' Zbuduj kolekcjê wartoœci do wyœwietlenia (wszystkie unikalne, poza tymi wykluczonymi)
+    ' Build a collection of values to display (all unique values excluding those in the exclusions list)
     Set allowedValues = New Collection
     Dim key As Variant
     For Each key In uniqueValues.Keys
@@ -98,31 +99,30 @@ Sub FilterBySelectedExclude()
         End If
     Next key
     
-    ' Jeœli nie ma wartoœci do wyœwietlenia, poinformuj u¿ytkownika i opcjonalnie przywróæ pe³ny widok
+    ' If no values are left to display, notify the user and optionally reset the filter
     If allowedValues.Count = 0 Then
-        MsgBox "Brak wartoœci do wyœwietlenia po odfiltrowaniu.", vbInformation
+        MsgBox "No values to display after filtering.", vbInformation
         tbl.AutoFilter.ShowAllData
         Exit Sub
     End If
     
-    ' Konwertuj kolekcjê do tablicy – AutoFilter z operatorem xlFilterValues wymaga tablicy
+    ' Convert the collection to an array â€“ AutoFilter with the xlFilterValues operator requires an array
     ReDim arrAllowed(0 To allowedValues.Count - 1)
     For i = 1 To allowedValues.Count
         arrAllowed(i - 1) = allowedValues(i)
     Next i
     
-    ' Ustaw filtr: wyœwietl tylko te wiersze, których wartoœæ w danej kolumnie znajduje siê w tablicy arrAllowed
+    ' Apply the filter: display only the rows where the column value is in the allowed values array
     tbl.Range.AutoFilter Field:=fieldIndex, Criteria1:=arrAllowed, Operator:=xlFilterValues
     
-    ' Opcjonalnie: przywróæ zaznaczenie do komórki z kryterium
+    ' Optionally, restore the selection to the criteria cell
     ws.Cells(tbl.Range.Row, colWorksheet).Select
     criteriaCell.Select
     
     Application.ScreenUpdating = True
     Exit Sub
-    
+
 ErrorHandler:
+    ' Display an error message if something goes wrong
     MsgBox "Error: " & Err.Description, vbCritical
 End Sub
-
-
